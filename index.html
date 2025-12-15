@@ -1,0 +1,188 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<link rel="stylesheet" href="https://unpkg.com/@chrisoakman/chessboardjs@1.0.0/dist/chessboard-1.0.0.min.css">
+<style>
+    /* Board colors */
+    #board .white-1e1d7 { background-color: #90EE90 !important; }
+    #board .black-3c85d { background-color: #000000 !important; }
+    #board .board-b72b1 { border: 4px solid #023020 !important; }
+    
+    /* Hover glow */
+    #board .square-55d63:hover { box-shadow: inset 0 0 0 2px #FFD700 !important; }
+</style>
+<script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+<script src="https://unpkg.com/@chrisoakman/chessboardjs@1.0.0/dist/chessboard-1.0.0.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/chess.js/0.10.3/chess.min.js"></script>
+<script src="stockfish.wasm.js"></script>
+</head>
+<body>
+<div align="center">
+    <h1>KingCobraJFChess</h1>
+    <div id="board" style="width: 400px; margin: 20px auto;"></div>
+    <div id="status" style="font-weight: bold; font-size: 18px;"></div>
+    <button id="newGame">New Game</button>
+</div>
+
+<script>
+$(function () {
+    var board, stockfish;
+    var game = new Chess();
+    var lastMove = null;
+    var engineReady = false;
+    var $status = $('#status');
+
+    const HOVER_RED  = 'inset 0 0 0 3px #FF6B6B';
+    const HOVER_GRAY = 'inset 0 0 0 3px #777777';
+    const LAST_MOVE  = 'inset 0 0 0 3px #FFD700';
+    const CHECK_RED  = 'inset 0 0 0 4px #FF0000';
+
+    /* ---------- SINGLE clearHoverHighlights function ---------- */
+    function clearHoverHighlights() {
+        $('#board .square-55d63').each(function () {
+            const shadow = $(this).css('box-shadow');
+            if (shadow.includes('255, 107, 107') || shadow.includes('119, 119, 119')) {
+                $(this).css('box-shadow', '');
+            }
+        });
+    }
+
+    function highlightSquare(square, style) {
+        $('#board .square-' + square).css('box-shadow', style);
+    }
+
+    function clearAllHighlights() {
+        $('#board .square-55d63').css('box-shadow', '');
+    }
+
+    function highlightLastMove() {
+        if (!lastMove) return;
+        highlightSquare(lastMove.from, LAST_MOVE);
+        highlightSquare(lastMove.to, LAST_MOVE);
+    }
+
+    function getKingSquare(color) {
+        const files = 'abcdefgh';
+        const b = game.board();
+        for (let r = 0; r < 8; r++)
+            for (let f = 0; f < 8; f++)
+                if (b[r][f]?.type === 'k' && b[r][f].color === color)
+                    return files[f] + (8 - r);
+        return null;
+    }
+
+    function highlightKingInCheck() {
+        if (!game.in_check()) return;
+        const sq = getKingSquare(game.turn());
+        if (sq) highlightSquare(sq, CHECK_RED);
+    }
+
+    function applyPersistentHighlights() {
+        clearAllHighlights();  // ← CRITICAL: Clear everything first
+        highlightLastMove();
+        highlightKingInCheck();
+    }
+
+    /* ---------- Stockfish ---------- */
+    function initStockfish() {
+        stockfish = new Worker('stockfish.wasm.js');
+        stockfish.onmessage = e => {
+            if (e.data === 'readyok') engineReady = true;
+            if (!e.data.startsWith('bestmove')) return;
+
+            const m = e.data.split(' ')[1];
+            if (!m || m === '(none)') return;
+
+            const move = game.move({from: m.slice(0,2), to: m.slice(2,4), promotion: 'q'});
+            if (move) lastMove = move;
+            
+            board.position(game.fen());
+            updateStatus();
+            applyPersistentHighlights();  // ← Reapply ONLY last move + check
+        };
+        stockfish.postMessage('uci');
+        stockfish.postMessage('isready');
+    }
+
+    /* ---------- Board handlers ---------- */
+    function onMouseoverSquare(square, piece) {
+        if (typeof piece !== 'string' || !piece.startsWith('w')) return;
+        const moves = game.moves({ square, verbose: true });
+        if (!moves.length) return;
+
+        highlightSquare(square, HOVER_RED);
+        moves.forEach(m => highlightSquare(m.to, HOVER_GRAY));
+    }
+
+    function onMouseoutSquare() {
+        clearHoverHighlights();
+        applyPersistentHighlights();  // Reapply last move + check after hover clears
+    }
+
+    function onDrop(source, target) {
+        clearAllHighlights();  // Clear everything
+        
+        const move = game.move({ from: source, to: target, promotion: 'q' });
+        if (!move) return 'snapback';
+
+        lastMove = move;
+        board.position(game.fen());
+        updateStatus();
+        applyPersistentHighlights();  // Show ONLY this move
+        
+        setTimeout(makeAIMove, 250);
+    }
+
+    function onSnapEnd() {
+        board.position(game.fen());
+        applyPersistentHighlights();  // ← CRITICAL: Fix persistent highlights
+    }
+
+    function makeAIMove() {
+        if (!engineReady || game.game_over()) return;
+        stockfish.postMessage('position fen ' + game.fen());
+        stockfish.postMessage('go depth 15');
+    }
+
+function updateStatus() {
+    let s;
+    if (game.in_checkmate()) {
+        s = 'Checkmate!';
+    } else if (game.in_draw()) {
+        s = 'Draw';
+    } else if (game.turn() === 'w') {
+        s = 'White to move';
+    } else {
+        s = 'Black is thinking...';  // AI pondering message
+    }
+    if (game.in_check()) s += ' (in check)';
+    $status.text(s);
+}
+
+    function startNewGame() {
+        game.reset();
+        lastMove = null;
+        clearAllHighlights();
+        board.start();
+        updateStatus();
+    }
+
+    /* ---------- Init ---------- */
+    board = Chessboard('board', {
+        draggable: true,
+        position: 'start',
+        onDrop: onDrop,
+        onMouseoverSquare: onMouseoverSquare,
+        onMouseoutSquare: onMouseoutSquare,
+        onSnapEnd: onSnapEnd,  // ← ADDED: Fix persistent highlights
+        pieceTheme: './assets/{piece}.png'
+    });
+
+    initStockfish();
+    updateStatus();
+    $('#newGame').on('click', startNewGame);
+});
+</script>
+</body>
+</html>
