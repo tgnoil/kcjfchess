@@ -15,14 +15,16 @@ html {background-color: black}
     #board .square-55d63:hover { box-shadow: inset 0 0 0 2px #FFD700 !important; }
 
 .chessboard-container {
-  width: min(100vw - 20px, 600px); /* small padding on sides */
+  width: 100%; /* Make the width 100% of the available space */
+  max-width: 600px; /* Ensure that it doesn't exceed 600px on larger screens */
   margin: 10px auto;
 }
 
 /* Media query for mobile screens */
 @media (max-width: 768px) {
   .chessboard-container {
-    width: min(90vw, 500px);  /* Increase size on mobile (90% of viewport width or max 500px) */
+    width: 90vw;  /* 90% of the viewport width */
+    max-width: 500px; /* Cap it at 500px to prevent being too large */
   }
 }
 
