@@ -183,14 +183,19 @@ function updateStatus() {
         onDrop: onDrop,
         onMouseoverSquare: onMouseoverSquare,
         onMouseoutSquare: onMouseoutSquare,
-        onSnapEnd: onSnapEnd,  // ← ADDED: Fix persistent highlights
+        onSnapEnd: onSnapEnd,
         pieceTheme: './assets/{piece}.png'
     });
+
+
+
+
 
     initStockfish();
     updateStatus();
     $('#newGame').on('click', startNewGame);
 });
+
 </script>
 </body>
 </html>
