@@ -19,6 +19,14 @@ html {background-color: black}
   margin: 10px auto;
 }
 
+/* Media query for mobile screens */
+@media (max-width: 768px) {
+  .chessboard-container {
+    width: min(90vw, 500px);  /* Increase size on mobile (90% of viewport width or max 500px) */
+  }
+}
+
+
 /* Tooltip for chess pieces */
 .tooltip {
   position: absolute;
