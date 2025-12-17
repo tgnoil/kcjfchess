@@ -4,13 +4,33 @@
 <meta charset="UTF-8">
 <link rel="stylesheet" href="https://unpkg.com/@chrisoakman/chessboardjs@1.0.0/dist/chessboard-1.0.0.min.css">
 <style>
+    /* Responsive Chessboard */
+    #board {
+        width: 100%;
+        max-width: 600px;
+        height: auto;
+        margin: 20px auto;
+    }
+
     /* Board colors */
     #board .white-1e1d7 { background-color: #90EE90 !important; }
     #board .black-3c85d { background-color: #000000 !important; }
     #board .board-b72b1 { border: 4px solid #023020 !important; }
-    
+
     /* Hover glow */
     #board .square-55d63:hover { box-shadow: inset 0 0 0 2px #FFD700 !important; }
+
+    /* Tooltips */
+    .tooltip {
+        position: absolute;
+        background-color: rgba(0, 0, 0, 0.75);
+        color: #fff;
+        padding: 5px;
+        border-radius: 4px;
+        display: none;
+        font-size: 12px;
+        z-index: 10;
+    }
 </style>
 <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
 <script src="https://unpkg.com/@chrisoakman/chessboardjs@1.0.0/dist/chessboard-1.0.0.min.js"></script>
@@ -20,9 +40,10 @@
 <body>
 <div align="center">
     <h1>KingCobraJFChess</h1>
-    <div id="board" style="width: 400px; margin: 20px auto;"></div>
+    <div id="board"></div>
     <div id="status" style="font-weight: bold; font-size: 18px;"></div>
     <button id="newGame">New Game</button>
+    <div id="tooltip" class="tooltip"></div> <!-- Tooltip for Piece -->
 </div>
 
 <script>
@@ -32,6 +53,8 @@ $(function () {
     var lastMove = null;
     var engineReady = false;
     var $status = $('#status');
+    var $tooltip = $('#tooltip'); // Tooltip DOM element
+    var selectedPiece = null; // Store the selected piece for click-to-move
 
     const HOVER_RED  = 'inset 0 0 0 3px #FF6B6B';
     const HOVER_GRAY = 'inset 0 0 0 3px #777777';
@@ -96,7 +119,7 @@ $(function () {
 
             const move = game.move({from: m.slice(0,2), to: m.slice(2,4), promotion: 'q'});
             if (move) lastMove = move;
-            
+
             board.position(game.fen());
             updateStatus();
             applyPersistentHighlights();  // ← Reapply ONLY last move + check
@@ -107,31 +130,44 @@ $(function () {
 
     /* ---------- Board handlers ---------- */
     function onMouseoverSquare(square, piece) {
-        if (typeof piece !== 'string' || !piece.startsWith('w')) return;
-        const moves = game.moves({ square, verbose: true });
-        if (!moves.length) return;
+        // Only show hints for pieces (can be extended for tooltips)
+        if (typeof piece !== 'string') return;
 
+        const pieceType = piece.charAt(1).toUpperCase(); // piece type (e.g., P, R, N, B, Q, K)
+        $tooltip.text(pieceType).show();
+        
+        // Position the tooltip near the square
+        var offset = $('#board .square-' + square).offset();
+        $tooltip.css({ top: offset.top - 20, left: offset.left + 10 });
+
+        if (!game.moves({ square, verbose: true }).length) return;
         highlightSquare(square, HOVER_RED);
-        moves.forEach(m => highlightSquare(m.to, HOVER_GRAY));
     }
 
     function onMouseoutSquare() {
         clearHoverHighlights();
+        $tooltip.hide(); // Hide tooltip
         applyPersistentHighlights();  // Reapply last move + check after hover clears
     }
 
-    function onDrop(source, target) {
-        clearAllHighlights();  // Clear everything
-        
-        const move = game.move({ from: source, to: target, promotion: 'q' });
-        if (!move) return 'snapback';
-
-        lastMove = move;
-        board.position(game.fen());
-        updateStatus();
-        applyPersistentHighlights();  // Show ONLY this move
-        
-        setTimeout(makeAIMove, 250);
+    function onClickSquare(square, piece) {
+        if (!selectedPiece) {
+            // If no piece selected, pick this one
+            selectedPiece = square;
+            highlightSquare(selectedPiece, HOVER_RED); // Highlight selected piece
+        } else {
+            // If piece selected, try to make a move
+            const move = game.move({ from: selectedPiece, to: square, promotion: 'q' });
+            if (move) {
+                lastMove = move;
+                board.position(game.fen());
+                updateStatus();
+                applyPersistentHighlights();
+                setTimeout(makeAIMove, 250);
+            }
+            clearAllHighlights();
+            selectedPiece = null; // Reset selection
+        }
     }
 
     function onSnapEnd() {
@@ -145,20 +181,20 @@ $(function () {
         stockfish.postMessage('go depth 15');
     }
 
-function updateStatus() {
-    let s;
-    if (game.in_checkmate()) {
-        s = 'Checkmate!';
-    } else if (game.in_draw()) {
-        s = 'Draw';
-    } else if (game.turn() === 'w') {
-        s = 'White to move';
-    } else {
-        s = 'Black is thinking...';  // AI pondering message
+    function updateStatus() {
+        let s;
+        if (game.in_checkmate()) {
+            s = 'Checkmate!';
+        } else if (game.in_draw()) {
+            s = 'Draw';
+        } else if (game.turn() === 'w') {
+            s = 'White to move';
+        } else {
+            s = 'Black is thinking...';  // AI pondering message
+        }
+        if (game.in_check()) s += ' (in check)';
+        $status.text(s);
     }
-    if (game.in_check()) s += ' (in check)';
-    $status.text(s);
-}
 
     function startNewGame() {
         game.reset();
@@ -170,12 +206,12 @@ function updateStatus() {
 
     /* ---------- Init ---------- */
     board = Chessboard('board', {
-        draggable: true,
+        draggable: false, // Disable drag-and-drop
         position: 'start',
-        onDrop: onDrop,
         onMouseoverSquare: onMouseoverSquare,
         onMouseoutSquare: onMouseoutSquare,
-        onSnapEnd: onSnapEnd,  // ← ADDED: Fix persistent highlights
+        onClickSquare: onClickSquare, // Enable click-to-move
+        onSnapEnd: onSnapEnd,
         pieceTheme: './assets/{piece}.png'
     });
 
