@@ -4,8 +4,10 @@
 <meta charset="UTF-8">
 <link rel="stylesheet" href="https://unpkg.com/@chrisoakman/chessboardjs@1.0.0/dist/chessboard-1.0.0.min.css">
 <style>
+html {background-color: black}
+
     /* Board colors */
-    #board .white-1e1d7 { background-color: #90EE90 !important; }
+    #board .white-1e1d7 { background-color: #008000 !important; }
     #board .black-3c85d { background-color: #000000 !important; }
     #board .board-b72b1 { border: 4px solid #023020 !important; }
     
@@ -17,6 +19,19 @@
   margin: 10px auto;
 }
 
+/* Tooltip for chess pieces */
+.tooltip {
+  position: absolute;
+  background: #333;
+  color: #fff;
+  padding: 4px 6px;
+  font-size: 13px;
+  border-radius: 4px;
+  pointer-events: none;
+  transform: translate(-50%, -120%);
+  white-space: nowrap;
+  z-index: 1000;
+}
 
 
 </style>
@@ -27,10 +42,10 @@
 </head>
 <body>
 <div align="center">
-    <h1>KingCobraJFChess</h1>
+    <img src="logo.jpg">
     <div id="board" class="chessboard-container"></div>
     <div id="status" style="font-weight: bold; font-size: 18px;"></div>
-    <button id="newGame">New Game</button>
+    <button id="newGame" style="background-color: #C2EC26">New Game</button>
 </div>
 
 <script>
@@ -164,8 +179,12 @@ function updateStatus() {
     } else {
         s = 'Black is thinking...';  // AI pondering message
     }
+
     if (game.in_check()) s += ' (in check)';
-    $status.text(s);
+
+    $status
+        .text(s)
+        .css('color', '#C2EC26');      // text color set here
 }
 
     function startNewGame() {
@@ -194,6 +213,67 @@ function updateStatus() {
     initStockfish();
     updateStatus();
     $('#newGame').on('click', startNewGame);
+
+/* ---------- Tooltip handling ---------- */
+let tooltip;
+
+function showTooltip(e, pieceCode) {
+    // Map chess notation to readable names
+    const pieceNames = {
+        'wp': 'White Pawn',
+        'wr': 'White Rook',
+        'wn': 'White Knight',
+        'wb': 'White Bishop',
+        'wq': 'White Queen',
+        'wk': 'White King',
+        'bp': 'Black Pawn',
+        'br': 'Black Rook',
+        'bn': 'Black Knight',
+        'bb': 'Black Bishop',
+        'bq': 'Black Queen',
+        'bk': 'Black King'
+    };
+
+    // Remove old tooltip
+    $('.tooltip').remove();
+
+    // Create new tooltip near the mouse position
+    tooltip = $('<div class="tooltip"></div>')
+        .text(pieceNames[pieceCode] || 'Unknown piece')
+        .appendTo('body');
+
+    positionTooltip(e);
+}
+
+function positionTooltip(e) {
+    if (!tooltip) return;
+    tooltip.css({
+        left: e.pageX,
+        top: e.pageY - 20
+    });
+}
+
+function hideTooltip() {
+    if (tooltip) tooltip.remove();
+    tooltip = null;
+}
+
+/* Attach mouse events directly to the pieces */
+$('#board').on('mouseenter', 'img[class*="piece-"]', function(e) {
+    const pieceClass = $(this).attr('class');
+    const match = pieceClass.match(/square-(\w+)/);
+    const pieceId = $(this).attr('src').match(/\/([wb][prnbqk])\.png/);
+    if (pieceId) showTooltip(e, pieceId[1]);
+});
+
+$('#board').on('mousemove', function(e) {
+    positionTooltip(e);
+});
+
+$('#board').on('mouseleave', 'img[class*="piece-"]', function() {
+    hideTooltip();
+});
+
 });
 
 </script>
