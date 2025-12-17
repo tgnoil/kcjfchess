@@ -55,6 +55,7 @@ $(function () {
     var $status = $('#status');
     var $tooltip = $('#tooltip'); // Tooltip DOM element
     var selectedPiece = null; // Store the selected piece for click-to-move
+    var moveInProgress = false; // Track if a move is in progress
 
     const HOVER_RED  = 'inset 0 0 0 3px #FF6B6B';
     const HOVER_GRAY = 'inset 0 0 0 3px #777777';
@@ -130,7 +131,6 @@ $(function () {
 
     /* ---------- Board handlers ---------- */
     function onMouseoverSquare(square, piece) {
-        // Only show hints for pieces (can be extended for tooltips)
         if (typeof piece !== 'string') return;
 
         const pieceType = piece.charAt(1).toUpperCase(); // piece type (e.g., P, R, N, B, Q, K)
@@ -151,6 +151,8 @@ $(function () {
     }
 
     function onClickSquare(square, piece) {
+        if (moveInProgress) return; // Prevent click while a move is in progress
+
         if (!selectedPiece) {
             // If no piece selected, pick this one
             selectedPiece = square;
@@ -165,8 +167,11 @@ $(function () {
                 applyPersistentHighlights();
                 setTimeout(makeAIMove, 250);
             }
+
+            // Reset state after move attempt
             clearAllHighlights();
-            selectedPiece = null; // Reset selection
+            selectedPiece = null;
+            moveInProgress = false; // Reset move progress flag
         }
     }
 
@@ -206,7 +211,7 @@ $(function () {
 
     /* ---------- Init ---------- */
     board = Chessboard('board', {
-        draggable: false, // Disable drag-and-drop
+        draggable: true, // Enable drag-and-drop again
         position: 'start',
         onMouseoverSquare: onMouseoverSquare,
         onMouseoutSquare: onMouseoutSquare,
